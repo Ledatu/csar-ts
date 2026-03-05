@@ -1,6 +1,6 @@
 {
   "name": "csar-ts",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Smart Resilience SDK — lightweight interceptor for Axios/Fetch with transparent backpressure handling from the CSAR API gateway",
   "type": "module",
   "main": "./dist/index.cjs",
