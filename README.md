@@ -1,6 +1,6 @@
 # csar-ts
 
-> Smart resilience SDK for the [CSAR API Router](https://github.com/csar) — transparent backpressure handling, circuit breaking, and request deduplication for Axios and Fetch.
+> Smart resilience SDK for the [CSAR API Router](https://github.com/ledatu/csar) — transparent backpressure handling, circuit breaking, and request deduplication for Axios and Fetch.
 
 [![npm version](https://img.shields.io/npm/v/csar-ts.svg)](https://www.npmjs.com/package/csar-ts)
 [![license](https://img.shields.io/npm/l/csar-ts.svg)](./LICENSE)
@@ -9,7 +9,7 @@
 
 ## What is CSAR?
 
-[CSAR](https://github.com/csar) is a high-performance API gateway and router that implements cooperative rate limiting (backpressure). Instead of silently dropping requests, CSAR responds with `503` and tells the client *exactly* how long to wait, so traffic can be absorbed gracefully rather than lost.
+[CSAR](https://github.com/ledatu/csar) is a high-performance API gateway and router that implements cooperative rate limiting (backpressure). Instead of silently dropping requests, CSAR responds with `503` and tells the client *exactly* how long to wait, so traffic can be absorbed gracefully rather than lost.
 
 This SDK wires up that protocol transparently so your application code never has to think about it.
 
@@ -263,7 +263,7 @@ withCsarFetch / applyCsarAxios
    └── Retry middleware     (503 → classify → wait → retry)
                                  │
                                  ▼
-                    CSAR API Gateway  (github.com/csar)
+                    CSAR API Gateway  (github.com/ledatu/csar)
                                  │
                                  ▼
                            Your upstream
@@ -288,7 +288,6 @@ npm run lint
 
 ## Related
 
-- **[CSAR Gateway](https://github.com/csar)** — the API gateway this SDK is built for
 - **[ledatu/csar](https://github.com/ledatu/csar)** — router source code
 
 ---
