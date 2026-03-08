@@ -19,6 +19,9 @@ export interface CsarLogger {
 
   /** Log a request deduplication hit. */
   dedup(url: string): void;
+
+  /** Log an auth-related event (token refresh, 401 retry, etc.). */
+  auth?: (message: string) => void;
 }
 
 /**
@@ -31,6 +34,7 @@ export function createLogger(enabled: boolean): CsarLogger {
       serverWait: noop,
       circuitBreaker: noop,
       dedup: noop,
+      auth: noop,
     };
   }
 
@@ -58,6 +62,10 @@ export function createLogger(enabled: boolean): CsarLogger {
 
     dedup(url) {
       console.log(`${PREFIX} 🔗 Deduplicating in-flight GET: ${url}`);
+    },
+
+    auth(message) {
+      console.log(`${PREFIX} 🔑 ${message}`);
     },
   };
 }

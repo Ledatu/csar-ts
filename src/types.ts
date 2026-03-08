@@ -1,3 +1,5 @@
+import type { CsarAuthConfig } from "./auth/types.js";
+
 /**
  * Configuration for the CSAR resilience SDK.
  */
@@ -40,6 +42,13 @@ export interface CsarConfig {
 
   /** Callback invoked before each retry sleep. */
   onRetry?: (delayMs: number, attempt: number, error: unknown) => void;
+
+  /**
+   * Optional authentication configuration.
+   * When provided, the SDK automatically obtains and injects
+   * Bearer tokens via the CSAR STS.
+   */
+  auth?: CsarAuthConfig;
 }
 
 /**

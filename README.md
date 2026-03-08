@@ -23,9 +23,12 @@ This SDK wires up that protocol transparently so your application code never has
 - **Request deduplication** — collapses identical in-flight `GET` requests into a single network call
 - **`X-CSAR-Client-Limit` injection** — advertises your client's RPS capacity to the router for proactive shaping
 - **OpenTelemetry-compatible tracing** — generates `X-Request-Id` and W3C `traceparent` headers per request
+- **Built-in STS authentication** — loads service keys, signs JWT assertions, exchanges them for access tokens, and retries once on `401`
+- **High-level CSAR client** — `createCsarClient()` gives you a base-URL-aware client with resilience and auth built in
 - **Composable middleware pipeline** — clean, testable architecture for the Fetch adapter; same logic reused in Axios interceptors
+- **Async auth-ready adapters** — `withCsarFetchAsync()` and `applyCsarAxiosAsync()` enable auth-aware setup
 - **Dual ESM / CJS build** — works in Node.js, Bun, browsers, and edge runtimes
-- **Zero required dependencies** — Axios is a peer dep (optional); no other runtime deps
+- **Minimal runtime dependencies** — Axios stays an optional peer dep; `jose` powers JWT signing for STS auth
 
 ---
 
@@ -65,6 +68,24 @@ const fetch = withCsarFetch(globalThis.fetch, {
 const res = await fetch("https://api.example.com/data");
 ```
 
+### Fetch + STS Auth
+
+```typescript
+import { withCsarFetchAsync } from "csar-ts";
+
+const fetch = await withCsarFetchAsync(globalThis.fetch, {
+  maxWaitMs: 5000,
+  maxRetries: 3,
+  auth: {
+    stsEndpoint: "https://auth.example.com/token",
+    keyFile: "./authorized_key.json",
+    audience: "orders-service",
+  },
+});
+
+const res = await fetch("https://api.example.com/orders");
+```
+
 ### Axios
 
 ```typescript
@@ -82,6 +103,44 @@ applyCsarAxios(instance, {
 
 // Use instance normally — interceptors handle everything
 const { data } = await instance.get("/data");
+```
+
+### Axios + STS Auth
+
+```typescript
+import axios from "axios";
+import { applyCsarAxiosAsync } from "csar-ts";
+
+const instance = axios.create({ baseURL: "https://api.example.com" });
+
+await applyCsarAxiosAsync(instance, {
+  maxWaitMs: 5000,
+  maxRetries: 3,
+  auth: {
+    stsEndpoint: "https://auth.example.com/token",
+    keyData: serviceKey,
+  },
+});
+
+const { data } = await instance.get("/orders");
+```
+
+### High-Level Client
+
+```typescript
+import { createCsarClient } from "csar-ts";
+
+const client = await createCsarClient({
+  baseUrl: "https://api.example.com",
+  maxWaitMs: 5000,
+  maxRetries: 3,
+  auth: {
+    stsEndpoint: "https://auth.example.com/token",
+    keyFile: "./authorized_key.json",
+  },
+});
+
+const res = await client.get("/v1/data");
 ```
 
 ---
@@ -125,10 +184,30 @@ interface CsarConfig {
    */
   generateTraceId?: boolean;
 
+  /**
+   * Optional STS authentication.
+   * When provided, async adapters and `createCsarClient()` automatically
+   * obtain and inject Bearer tokens.
+   */
+  auth?: {
+    /** URL of the Security Token Service endpoint. */
+    stsEndpoint: string;
+    /** Path to `authorized_key.json` (Node.js only). */
+    keyFile?: string;
+    /** In-memory key object for edge/browser/server runtimes. */
+    keyData?: CsarServiceKey;
+    /** Optional JWT audience; defaults to `stsEndpoint`. */
+    audience?: string;
+    /** Retry count for failed token exchanges. Default: 2. */
+    maxStsRetries?: number;
+  };
+
   /** Called just before each retry sleep. */
   onRetry?: (delayMs: number, attempt: number, error: unknown) => void;
 }
 ```
+
+`auth.keyFile` is Node.js-only. In browsers, edge runtimes, or any environment where reading from disk is unavailable, pass `auth.keyData` instead.
 
 ---
 
@@ -153,7 +232,11 @@ A `503` response means backpressure. The SDK classifies it by priority:
 ## Error Handling
 
 ```typescript
-import { CsarBackpressureError, CsarCircuitBrokenError } from "csar-ts";
+import {
+  CsarBackpressureError,
+  CsarCircuitBrokenError,
+  CsarAuthError,
+} from "csar-ts";
 
 try {
   const res = await fetch("https://api.example.com/data");
@@ -172,17 +255,37 @@ try {
       `(router requested ${err.requestedWaitMs}ms)`,
     );
   }
+
+  if (err instanceof CsarAuthError) {
+    console.error(`Auth failed [${err.code}]`, err.message);
+  }
 }
 ```
+
+---
+
+## Authentication Flow
+
+When `auth` is configured, the SDK:
+
+1. Loads and validates the service key from `keyFile` or `keyData`
+2. Signs a short-lived JWT assertion using `EdDSA` or `RS256`
+3. Exchanges that assertion with the CSAR STS for an access token
+4. Caches the token in memory and refreshes it before expiry
+5. Retries once on `401` after forcing a token refresh
 
 ---
 
 ## Advanced: Full Config Example
 
 ```typescript
-import { withCsarFetch, CsarBackpressureError, CsarCircuitBrokenError } from "csar-ts";
+import {
+  withCsarFetchAsync,
+  CsarBackpressureError,
+  CsarCircuitBrokenError,
+} from "csar-ts";
 
-const fetch = withCsarFetch(globalThis.fetch, {
+const fetch = await withCsarFetchAsync(globalThis.fetch, {
   maxWaitMs: 8000,
   maxRetries: 5,
   clientLimitRps: 100,
@@ -199,6 +302,14 @@ const fetch = withCsarFetch(globalThis.fetch, {
 
   // Inject X-Request-Id + traceparent for distributed tracing
   generateTraceId: true,
+
+  // Obtain Bearer tokens from the CSAR STS
+  auth: {
+    stsEndpoint: "https://auth.example.com/token",
+    keyFile: "./authorized_key.json",
+    audience: "payments-service",
+    maxStsRetries: 2,
+  },
 
   // Log every retry to your monitoring pipeline
   onRetry: (delayMs, attempt, error) => {
@@ -277,7 +388,7 @@ withCsarFetch / applyCsarAxios
 # Build ESM + CJS + .d.ts
 npm run build
 
-# Run tests (74 tests, vitest)
+# Run tests
 npm test
 
 # Type-check only

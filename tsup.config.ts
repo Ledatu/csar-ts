@@ -9,5 +9,5 @@ export default defineConfig({
   minify: true,
   target: "es2020",
   outDir: "dist",
-  external: ["axios"],
+  external: ["axios", "jose"],
 });
