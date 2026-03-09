@@ -23,7 +23,8 @@ export {
 } from "./errors.js";
 
 // Core utilities
-export { extractCsarStatus, extractWaitTime, getHeader } from "./extractor.js";
+export { extractCsarStatus, extractWaitTime, extractWaitTimeWithSource, getHeader } from "./extractor.js";
+export type { WaitTimeSource, WaitTimeResult } from "./extractor.js";
 export { sleep } from "./sleep.js";
 
 // Adapters

@@ -48,9 +48,9 @@ export interface CsarClient {
  *   maxWaitMs: 5000,
  *   maxRetries: 3,
  *   auth: {
- *     stsEndpoint: 'https://csar-auth.run/token',
+ *     stsEndpoint: 'https://csar-auth.run/sts/token',
  *     keyFile: './authorized_key.json',
- *     audience: 'balance-service',
+ *     accessTokenAudience: 'balance-service',
  *   },
  * });
  *

@@ -34,7 +34,23 @@ export interface CsarAuthConfig {
   /** Key data object — works in all runtimes (Node.js, Edge, browser). */
   keyData?: CsarServiceKey;
 
-  /** Audience claim for the JWT assertion. Defaults to `stsEndpoint`. */
+  /**
+   * Audience for the JWT assertion — identifies who the assertion is intended for.
+   * Defaults to `stsEndpoint`.
+   */
+  stsAudience?: string;
+
+  /**
+   * Audience for the requested access token — identifies which downstream
+   * resource the token should grant access to. Sent as the `audience` form
+   * field in the STS token exchange.
+   */
+  accessTokenAudience?: string;
+
+  /**
+   * @deprecated Use `stsAudience` instead. When set, treated as `stsAudience`
+   * for backward compatibility.
+   */
   audience?: string;
 
   /** Max retries for STS token exchange failures (default: 2). */

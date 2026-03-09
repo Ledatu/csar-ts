@@ -27,7 +27,7 @@ describe("createAuthMiddleware", () => {
     const log = createLogger(false);
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       stsFetch,
     );
@@ -58,7 +58,7 @@ describe("createAuthMiddleware", () => {
     const log = createLogger(false);
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       stsFetch,
     );
@@ -94,7 +94,7 @@ describe("createAuthMiddleware", () => {
     const log = createLogger(false);
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       stsFetch,
     );
@@ -121,7 +121,7 @@ describe("createAuthMiddleware", () => {
     const log = createLogger(false);
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       stsFetch,
     );

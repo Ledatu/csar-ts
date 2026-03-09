@@ -17,7 +17,7 @@ import {
   CSAR_STATUS_CIRCUIT_OPEN,
   CSAR_STATUS_CIRCUIT_HALF_OPEN,
 } from "./constants.js";
-import { extractCsarStatus, extractWaitTime } from "./extractor.js";
+import { extractCsarStatus, extractWaitTime, extractWaitTimeWithSource } from "./extractor.js";
 import { CsarBackpressureError, CsarCircuitBrokenError } from "./errors.js";
 import { sleep } from "./sleep.js";
 import { ClientCircuitBreaker, extractOrigin } from "./circuit-breaker.js";
@@ -198,7 +198,7 @@ export function createRetryMiddleware(
       }
 
       // ── Throttled — wait and retry ────────────────────────────────
-      const waitMs = extractWaitTime(response.headers);
+      const { waitMs, source } = extractWaitTimeWithSource(response.headers);
 
       if (waitMs !== null && waitMs > config.maxWaitMs) {
         throw new CsarBackpressureError(
@@ -218,7 +218,7 @@ export function createRetryMiddleware(
 
       const delayMs = waitMs ?? 1000;
 
-      log.retry(delayMs, attempt, config.maxRetries, url);
+      log.retry(delayMs, attempt, config.maxRetries, url, source);
       config.onRetry?.(delayMs, attempt, response);
 
       await sleep(delayMs, signal);

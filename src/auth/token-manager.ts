@@ -66,7 +66,9 @@ export class TokenManager {
   }
 
   private async refresh(): Promise<string> {
-    const audience = this.config.audience ?? this.config.stsEndpoint;
+    const assertionAudience =
+      this.config.stsAudience ?? this.config.audience ?? this.config.stsEndpoint;
+    const accessTokenAudience = this.config.accessTokenAudience;
     const maxRetries = this.config.maxStsRetries ?? 2;
 
     this.log.auth?.("Token expired or missing, exchanging new assertion…");
@@ -75,15 +77,20 @@ export class TokenManager {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const assertion = await createAssertion(this.key, audience);
+        const assertion = await createAssertion(this.key, assertionAudience);
+
+        const params: Record<string, string> = {
+          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+          assertion,
+        };
+        if (accessTokenAudience) {
+          params.audience = accessTokenAudience;
+        }
 
         const response = await this.fetchFn(this.config.stsEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            assertion,
-          }).toString(),
+          body: new URLSearchParams(params).toString(),
         });
 
         if (!response.ok) {

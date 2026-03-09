@@ -77,9 +77,9 @@ const fetch = await withCsarFetchAsync(globalThis.fetch, {
   maxWaitMs: 5000,
   maxRetries: 3,
   auth: {
-    stsEndpoint: "https://auth.example.com/token",
+    stsEndpoint: "https://auth.example.com/sts/token",
     keyFile: "./authorized_key.json",
-    audience: "orders-service",
+    accessTokenAudience: "orders-service",
   },
 });
 
@@ -117,7 +117,7 @@ await applyCsarAxiosAsync(instance, {
   maxWaitMs: 5000,
   maxRetries: 3,
   auth: {
-    stsEndpoint: "https://auth.example.com/token",
+    stsEndpoint: "https://auth.example.com/sts/token",
     keyData: serviceKey,
   },
 });
@@ -135,7 +135,7 @@ const client = await createCsarClient({
   maxWaitMs: 5000,
   maxRetries: 3,
   auth: {
-    stsEndpoint: "https://auth.example.com/token",
+    stsEndpoint: "https://auth.example.com/sts/token",
     keyFile: "./authorized_key.json",
   },
 });
@@ -196,7 +196,11 @@ interface CsarConfig {
     keyFile?: string;
     /** In-memory key object for edge/browser/server runtimes. */
     keyData?: CsarServiceKey;
-    /** Optional JWT audience; defaults to `stsEndpoint`. */
+    /** Audience for the JWT assertion. Defaults to `stsEndpoint`. */
+    stsAudience?: string;
+    /** Audience for the requested access token (sent as form field to STS). */
+    accessTokenAudience?: string;
+    /** @deprecated Use `stsAudience` instead. */
     audience?: string;
     /** Retry count for failed token exchanges. Default: 2. */
     maxStsRetries?: number;
@@ -305,9 +309,9 @@ const fetch = await withCsarFetchAsync(globalThis.fetch, {
 
   // Obtain Bearer tokens from the CSAR STS
   auth: {
-    stsEndpoint: "https://auth.example.com/token",
+    stsEndpoint: "https://auth.example.com/sts/token",
     keyFile: "./authorized_key.json",
-    audience: "payments-service",
+    accessTokenAudience: "payments-service",
     maxStsRetries: 2,
   },
 

@@ -8,8 +8,8 @@ const PREFIX = "[csar-ts]";
  * Internal logger interface used by adapters.
  */
 export interface CsarLogger {
-  /** Log a retry event. */
-  retry(delayMs: number, attempt: number, maxRetries: number, url: string): void;
+  /** Log a retry event with optional backoff source. */
+  retry(delayMs: number, attempt: number, maxRetries: number, url: string, source?: string): void;
 
   /** Log server-side queue time from a successful response. */
   serverWait(headers: HeadersLike, url: string): void;
@@ -39,9 +39,10 @@ export function createLogger(enabled: boolean): CsarLogger {
   }
 
   return {
-    retry(delayMs, attempt, maxRetries, url) {
+    retry(delayMs, attempt, maxRetries, url, source) {
+      const sourceLabel = source && source !== "default" ? ` (from ${source})` : "";
       console.log(
-        `${PREFIX} ⏳ Rate limited. Waiting ${delayMs}ms (Attempt ${attempt}/${maxRetries}) for ${url}`,
+        `${PREFIX} ⏳ Rate limited. Waiting ${delayMs}ms${sourceLabel} (Attempt ${attempt}/${maxRetries}) for ${url}`,
       );
     },
 

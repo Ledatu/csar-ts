@@ -45,7 +45,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       mockFetch,
     );
@@ -55,7 +55,7 @@ describe("TokenManager", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     const [url, init] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://sts.example.com/token");
+    expect(url).toBe("https://sts.example.com/sts/token");
     expect(init.method).toBe("POST");
     expect(init.body).toContain("grant_type=urn");
     expect(init.body).toContain("assertion=");
@@ -68,7 +68,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       mockFetch,
     );
@@ -91,7 +91,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       mockFetch,
     );
@@ -118,7 +118,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       mockFetch,
     );
@@ -151,7 +151,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token", maxStsRetries: 2 },
+      { stsEndpoint: "https://sts.example.com/sts/token", maxStsRetries: 2 },
       log,
       mockFetch,
     );
@@ -174,7 +174,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token", maxStsRetries: 0 },
+      { stsEndpoint: "https://sts.example.com/sts/token", maxStsRetries: 0 },
       log,
       mockFetch,
     );
@@ -198,7 +198,7 @@ describe("TokenManager", () => {
 
     const tm = new TokenManager(
       key,
-      { stsEndpoint: "https://sts.example.com/token" },
+      { stsEndpoint: "https://sts.example.com/sts/token" },
       log,
       mockFetch,
     );
@@ -213,7 +213,8 @@ describe("TokenManager", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("uses audience from config when provided", async () => {
+  it("uses deprecated audience as stsAudience for backward compat", async () => {
+    const { createAssertion } = await import("../../src/auth/assertion.js");
     const mockFetch = vi.fn(() =>
       Promise.resolve(makeStsResponse("token-abc", 3600)),
     );
@@ -221,7 +222,7 @@ describe("TokenManager", () => {
     const tm = new TokenManager(
       key,
       {
-        stsEndpoint: "https://sts.example.com/token",
+        stsEndpoint: "https://sts.example.com/sts/token",
         audience: "my-custom-audience",
       },
       log,
@@ -230,7 +231,92 @@ describe("TokenManager", () => {
 
     await tm.getAccessToken();
 
+    expect(createAssertion).toHaveBeenCalledWith(key, "my-custom-audience");
     const body = mockFetch.mock.calls[0][1].body as string;
     expect(body).toContain("assertion=");
+    expect(body).not.toContain("audience=");
+  });
+
+  it("uses stsAudience for assertion when both stsAudience and deprecated audience are set", async () => {
+    const { createAssertion } = await import("../../src/auth/assertion.js");
+    const mockFetch = vi.fn(() =>
+      Promise.resolve(makeStsResponse("token-abc", 3600)),
+    );
+
+    const tm = new TokenManager(
+      key,
+      {
+        stsEndpoint: "https://sts.example.com/sts/token",
+        stsAudience: "sts-audience",
+        audience: "deprecated-audience",
+      },
+      log,
+      mockFetch,
+    );
+
+    await tm.getAccessToken();
+
+    expect(createAssertion).toHaveBeenCalledWith(key, "sts-audience");
+  });
+
+  it("sends accessTokenAudience as audience form field in STS request", async () => {
+    const mockFetch = vi.fn(() =>
+      Promise.resolve(makeStsResponse("token-scoped", 3600)),
+    );
+
+    const tm = new TokenManager(
+      key,
+      {
+        stsEndpoint: "https://sts.example.com/sts/token",
+        accessTokenAudience: "orders-service",
+      },
+      log,
+      mockFetch,
+    );
+
+    await tm.getAccessToken();
+
+    const body = mockFetch.mock.calls[0][1].body as string;
+    const params = new URLSearchParams(body);
+    expect(params.get("audience")).toBe("orders-service");
+    expect(params.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:jwt-bearer");
+    expect(params.get("assertion")).toBeTruthy();
+  });
+
+  it("does not send audience form field when accessTokenAudience is not set", async () => {
+    const mockFetch = vi.fn(() =>
+      Promise.resolve(makeStsResponse("token-abc", 3600)),
+    );
+
+    const tm = new TokenManager(
+      key,
+      { stsEndpoint: "https://sts.example.com/sts/token" },
+      log,
+      mockFetch,
+    );
+
+    await tm.getAccessToken();
+
+    const body = mockFetch.mock.calls[0][1].body as string;
+    const params = new URLSearchParams(body);
+    expect(params.has("audience")).toBe(false);
+  });
+
+  it("defaults assertion audience to stsEndpoint when no audience fields are set", async () => {
+    const { createAssertion } = await import("../../src/auth/assertion.js");
+    const mockFetch = vi.fn(() =>
+      Promise.resolve(makeStsResponse("token-abc", 3600)),
+    );
+
+    const tm = new TokenManager(
+      key,
+      { stsEndpoint: "https://sts.example.com/sts/token" },
+      log,
+      mockFetch,
+    );
+
+    await tm.getAccessToken();
+
+    expect(createAssertion).toHaveBeenCalledWith(key, "https://sts.example.com/sts/token");
   });
 });

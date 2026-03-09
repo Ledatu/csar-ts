@@ -69,20 +69,33 @@ export function extractCsarStatus(headers: HeadersLike): string | null {
  * Returns `null` if neither header yields a valid positive number.
  */
 export function extractWaitTime(headers: HeadersLike): number | null {
-  // Priority 1: X-CSAR-Wait-MS (milliseconds)
+  return extractWaitTimeWithSource(headers).waitMs;
+}
+
+export type WaitTimeSource = "X-CSAR-Wait-MS" | "Retry-After" | "default";
+
+export interface WaitTimeResult {
+  waitMs: number | null;
+  source: WaitTimeSource;
+}
+
+/**
+ * Like `extractWaitTime`, but also reports which header supplied the value.
+ */
+export function extractWaitTimeWithSource(headers: HeadersLike): WaitTimeResult {
   const waitMs = getHeader(headers, CSAR_HEADER_WAIT_MS);
   if (waitMs !== null) {
     const ms = parseInt(waitMs, 10);
-    if (!isNaN(ms) && ms > 0) return ms;
+    if (!isNaN(ms) && ms > 0) return { waitMs: ms, source: "X-CSAR-Wait-MS" };
   }
 
-  // Priority 2: Retry-After (seconds or HTTP-date)
   const retryAfter = getHeader(headers, CSAR_HEADER_RETRY_AFTER);
   if (retryAfter !== null) {
-    return parseRetryAfter(retryAfter);
+    const ms = parseRetryAfter(retryAfter);
+    if (ms !== null) return { waitMs: ms, source: "Retry-After" };
   }
 
-  return null;
+  return { waitMs: null, source: "default" };
 }
 
 /**
