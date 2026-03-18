@@ -1,4 +1,5 @@
 import type { CsarConfig } from "./types.js";
+import type { AuthzConfig } from "./authz/types.js";
 import { createLogger } from "./logger.js";
 import { loadServiceKey } from "./auth/key-loader.js";
 import { TokenManager } from "./auth/token-manager.js";
@@ -13,6 +14,8 @@ import {
 } from "./pipeline.js";
 import { ClientCircuitBreaker } from "./circuit-breaker.js";
 import { RequestDeduplicator } from "./dedup.js";
+import { PermissionManager } from "./authz/permission-manager.js";
+import type { PermissionSnapshot } from "./authz/permission-snapshot.js";
 
 /**
  * Configuration for the high-level CSAR client.
@@ -23,6 +26,13 @@ export interface CsarClientConfig extends CsarConfig {
 
   /** Custom fetch function (defaults to `globalThis.fetch`). */
   fetch?: typeof globalThis.fetch;
+
+  /**
+   * Optional authorization configuration for client-side RBAC.
+   * When provided, the client exposes a `permissions()` method
+   * that returns a cached PermissionSnapshot with `can()`, `hasRole()`, etc.
+   */
+  authz?: AuthzConfig;
 }
 
 /**
@@ -35,11 +45,25 @@ export interface CsarClient {
   patch(path: string, body?: BodyInit | null, init?: RequestInit): Promise<Response>;
   delete(path: string, init?: RequestInit): Promise<Response>;
   request(path: string, init?: RequestInit): Promise<Response>;
+
+  /**
+   * Returns the authenticated user's permission snapshot.
+   * Available only when `authz` config is provided.
+   *
+   * @example
+   * ```ts
+   * const perms = await client.permissions();
+   * if (perms.can("DELETE", "/api/v1/documents/123")) {
+   *   // show delete button
+   * }
+   * ```
+   */
+  permissions(): Promise<PermissionSnapshot>;
 }
 
 /**
  * Creates a high-level HTTP client with CSAR resilience and optional
- * STS authentication baked in.
+ * STS authentication and RBAC baked in.
  *
  * @example
  * ```ts
@@ -48,13 +72,19 @@ export interface CsarClient {
  *   maxWaitMs: 5000,
  *   maxRetries: 3,
  *   auth: {
- *     stsEndpoint: 'https://csar-auth.run/sts/token',
+ *     stsEndpoint: 'https://csar-authn.run/sts/token',
  *     keyFile: './authorized_key.json',
  *     accessTokenAudience: 'balance-service',
  *   },
+ *   authz: {
+ *     permissionsEndpoint: 'https://csar-authn.run/auth/me/permissions',
+ *   },
  * });
  *
- * const res = await client.get('/v1/data');
+ * const perms = await client.permissions();
+ * if (perms.can('DELETE', '/api/v1/data/123')) {
+ *   await client.delete('/v1/data/123');
+ * }
  * ```
  */
 export async function createCsarClient(
@@ -92,6 +122,12 @@ export async function createCsarClient(
 
   const pipeline = composeFetchPipeline(middlewares, baseFetch);
 
+  // Permission manager (optional).
+  let permissionManager: PermissionManager | null = null;
+  if (config.authz) {
+    permissionManager = new PermissionManager(config.authz, log, pipeline);
+  }
+
   function resolveUrl(path: string): string {
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     const base = config.baseUrl.endsWith("/")
@@ -119,6 +155,14 @@ export async function createCsarClient(
     },
     delete(path, init = {}) {
       return pipeline(resolveUrl(path), { ...init, method: "DELETE" });
+    },
+    async permissions() {
+      if (!permissionManager) {
+        throw new Error(
+          "Permissions not configured. Provide an `authz` config to createCsarClient().",
+        );
+      }
+      return permissionManager.getPermissions();
     },
   };
 }

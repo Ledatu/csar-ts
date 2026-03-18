@@ -64,6 +64,14 @@ export { createAssertion } from "./auth/assertion.js";
 export { TokenManager } from "./auth/token-manager.js";
 export { createAuthMiddleware } from "./auth/middleware.js";
 
+// Authz (client-side RBAC)
+export type { AuthzConfig, Permission, ScopedPermissions, PermissionsApiResponse } from "./authz/index.js";
+export { CsarAuthzError } from "./authz/index.js";
+export type { CsarAuthzErrorCode } from "./authz/errors.js";
+export { PermissionManager } from "./authz/index.js";
+export { PermissionSnapshot } from "./authz/index.js";
+export { matchResource, matchAction } from "./authz/index.js";
+
 // High-level client
 export { createCsarClient } from "./client.js";
 export type { CsarClientConfig, CsarClient } from "./client.js";
