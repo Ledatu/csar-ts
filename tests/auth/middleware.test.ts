@@ -19,7 +19,7 @@ function makeStsResponse(accessToken: string, expiresIn: number): Response {
 }
 
 describe("createAuthMiddleware", () => {
-  it("injects Authorization: Bearer header", async () => {
+  it("injects X-Csar-Authorization: Bearer header", async () => {
     const key = await generateTestKey("ED25519");
     const stsFetch = vi.fn(() =>
       Promise.resolve(makeStsResponse("my-token", 3600)),
@@ -43,7 +43,44 @@ describe("createAuthMiddleware", () => {
     await middleware("https://api.example.com/data", {}, next);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(capturedHeaders[0].get("Authorization")).toBe("Bearer my-token");
+    expect(capturedHeaders[0].get("X-Csar-Authorization")).toBe(
+      "Bearer my-token",
+    );
+  });
+
+  it("leaves a caller-supplied Authorization header untouched", async () => {
+    const key = await generateTestKey("ED25519");
+    const stsFetch = vi.fn(() =>
+      Promise.resolve(makeStsResponse("my-token", 3600)),
+    );
+    const log = createLogger(false);
+    const tm = new TokenManager(
+      key,
+      { stsEndpoint: "https://sts.example.com/sts/token" },
+      log,
+      stsFetch,
+    );
+
+    const middleware = createAuthMiddleware(tm, log);
+
+    const capturedHeaders: Headers[] = [];
+    const next = vi.fn((input: RequestInfo | URL, init: RequestInit) => {
+      capturedHeaders.push(new Headers(init.headers));
+      return Promise.resolve(new Response("ok", { status: 200 }));
+    });
+
+    await middleware(
+      "https://api.example.com/data",
+      { headers: { Authorization: "Bearer upstream-api-key" } },
+      next,
+    );
+
+    expect(capturedHeaders[0].get("Authorization")).toBe(
+      "Bearer upstream-api-key",
+    );
+    expect(capturedHeaders[0].get("X-Csar-Authorization")).toBe(
+      "Bearer my-token",
+    );
   });
 
   it("retries once on 401 with a fresh token", async () => {
@@ -141,6 +178,8 @@ describe("createAuthMiddleware", () => {
     );
 
     expect(capturedHeaders[0].get("X-Custom")).toBe("value");
-    expect(capturedHeaders[0].get("Authorization")).toBe("Bearer my-token");
+    expect(capturedHeaders[0].get("X-Csar-Authorization")).toBe(
+      "Bearer my-token",
+    );
   });
 });

@@ -48,8 +48,9 @@ export class PermissionManager {
    *   and refreshes in the background.
    * - Deduplicates concurrent calls.
    *
-   * The caller must include an Authorization header by using this
-   * after the auth middleware has injected the Bearer token.
+   * `authHeader` is the end-user credential, sent as `Authorization` — a
+   * different axis from the service's own STS token, which the auth
+   * middleware carries in `X-Csar-Authorization`.
    */
   async getPermissions(authHeader?: string): Promise<PermissionSnapshot> {
     const now = Date.now();

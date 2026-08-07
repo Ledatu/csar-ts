@@ -141,7 +141,7 @@ describe("createCsarClient", () => {
     expect(apiCall).toBeTruthy();
 
     const headers = new Headers(apiCall![1].headers);
-    expect(headers.get("Authorization")).toBe("Bearer auth-token-123");
+    expect(headers.get("X-Csar-Authorization")).toBe("Bearer auth-token-123");
   });
 
   it("auto-refreshes token on 401", async () => {

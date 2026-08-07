@@ -23,7 +23,7 @@ This SDK wires up that protocol transparently so your application code never has
 - **Request deduplication** — collapses identical in-flight `GET` requests into a single network call
 - **`X-CSAR-Client-Limit` injection** — advertises your client's RPS capacity to the router for proactive shaping
 - **OpenTelemetry-compatible tracing** — generates `X-Request-Id` and W3C `traceparent` headers per request
-- **Built-in STS authentication** — loads service keys, signs JWT assertions, exchanges them for access tokens, and retries once on `401`
+- **Built-in STS authentication** — loads service keys, signs JWT assertions, exchanges them for access tokens, injects them as `X-Csar-Authorization`, and retries once on `401`
 - **High-level CSAR client** — `createCsarClient()` gives you a base-URL-aware client with resilience and auth built in
 - **Composable middleware pipeline** — clean, testable architecture for the Fetch adapter; same logic reused in Axios interceptors
 - **Async auth-ready adapters** — `withCsarFetchAsync()` and `applyCsarAxiosAsync()` enable auth-aware setup
@@ -187,7 +187,7 @@ interface CsarConfig {
   /**
    * Optional STS authentication.
    * When provided, async adapters and `createCsarClient()` automatically
-   * obtain and inject Bearer tokens.
+   * obtain access tokens and inject them as `X-Csar-Authorization: Bearer …`.
    */
   auth?: {
     /** URL of the Security Token Service endpoint. */
@@ -276,7 +276,21 @@ When `auth` is configured, the SDK:
 2. Signs a short-lived JWT assertion using `EdDSA` or `RS256`
 3. Exchanges that assertion with the CSAR STS for an access token
 4. Caches the token in memory and refreshes it before expiry
-5. Retries once on `401` after forcing a token refresh
+5. Injects it as `X-Csar-Authorization: Bearer <token>` on every request
+6. Retries once on `401` after forcing a token refresh
+
+### Why `X-Csar-Authorization` and not `Authorization`
+
+The access token authenticates the *hop to the CSAR router*, not the upstream
+service. On routes without a credential-injection profile the router proxies
+`Authorization` through to the upstream verbatim, so the two must not share a
+header — that separation is what lets a service pass its own third-party
+credential (a marketplace API key, say) through the router while still
+authenticating itself to CSAR. The router strips `X-Csar-Authorization` before
+proxying, so the internal token never reaches an upstream.
+
+The SDK therefore never touches `Authorization`; anything you set there is
+forwarded untouched. This matches `csar-core/stsclient` on the Go side.
 
 ---
 
@@ -343,17 +357,19 @@ import {
 const config: CsarConfig = { maxWaitMs: 5000, maxRetries: 3 };
 const log = createLogger(true);
 
-// Add your own middleware
-const authMiddleware: FetchMiddleware = (input, init, next) => {
+// Add your own middleware. `Authorization` here is the credential the router
+// proxies to the upstream — CSAR's own token lives in `X-Csar-Authorization`
+// and is handled by the built-in auth middleware.
+const upstreamCredentialMiddleware: FetchMiddleware = (input, init, next) => {
   const headers = new Headers(init?.headers);
-  headers.set("Authorization", `Bearer ${getToken()}`);
+  headers.set("Authorization", `Bearer ${getUpstreamApiKey()}`);
   return next(input, { ...init, headers });
 };
 
 const fetch = composeFetchPipeline(
   [
     createHeadersMiddleware(config),
-    authMiddleware,                          // ← your custom step
+    upstreamCredentialMiddleware,            // ← your custom step
     createDedupMiddleware(config, log),
     createCircuitBreakerMiddleware(config, log),
     createRetryMiddleware(config, log),

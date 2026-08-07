@@ -2,6 +2,7 @@ import type { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axio
 import type { CsarConfig } from "../types.js";
 import {
   CSAR_BACKPRESSURE_STATUS,
+  CSAR_HEADER_AUTHORIZATION,
   CSAR_HEADER_CLIENT_LIMIT,
 } from "../constants.js";
 import { CsarBackpressureError, CsarCircuitBrokenError } from "../errors.js";
@@ -188,8 +189,9 @@ export function applyCsarAxios(
  * Async variant of `applyCsarAxios` that supports authentication.
  *
  * When `config.auth` is provided, a request interceptor injects
- * `Authorization: Bearer <token>` and a response interceptor handles
- * 401 by refreshing the token and retrying once.
+ * `X-Csar-Authorization: Bearer <token>` and a response interceptor handles
+ * 401 by refreshing the token and retrying once. A caller-supplied
+ * `Authorization` header is left untouched for the upstream.
  */
 export async function applyCsarAxiosAsync(
   instance: AxiosInstance,
@@ -205,7 +207,7 @@ export async function applyCsarAxiosAsync(
     // Inject Bearer token on every request
     instance.interceptors.request.use(async (reqCfg: InternalAxiosRequestConfig) => {
       const token = await tokenManager.getAccessToken();
-      reqCfg.headers.set("Authorization", `Bearer ${token}`);
+      reqCfg.headers.set(CSAR_HEADER_AUTHORIZATION, `Bearer ${token}`);
       return reqCfg;
     });
 
@@ -219,7 +221,7 @@ export async function applyCsarAxiosAsync(
         tokenManager.clearCache();
         const freshToken = await tokenManager.getAccessToken();
         (error.config as InternalAxiosRequestConfig).headers.set(
-          "Authorization",
+          CSAR_HEADER_AUTHORIZATION,
           `Bearer ${freshToken}`,
         );
         cfg[AUTH_RETRIED_KEY] = true;

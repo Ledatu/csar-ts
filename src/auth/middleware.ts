@@ -1,9 +1,14 @@
 import type { FetchMiddleware } from "../pipeline.js";
 import type { TokenManager } from "./token-manager.js";
 import type { CsarLogger } from "../logger.js";
+import { CSAR_HEADER_AUTHORIZATION } from "../constants.js";
 
 /**
- * Creates a fetch middleware that injects `Authorization: Bearer <token>`.
+ * Creates a fetch middleware that injects
+ * `X-Csar-Authorization: Bearer <token>`.
+ *
+ * Any caller-supplied `Authorization` header is left untouched — the router
+ * proxies it to the upstream, so the two credentials must not collide.
  *
  * On 401 responses the token cache is cleared, a fresh token is obtained,
  * and the request is retried exactly once to prevent infinite loops.
@@ -15,7 +20,7 @@ export function createAuthMiddleware(
   return async (input, init, next) => {
     const token = await tokenManager.getAccessToken();
     const headers = new Headers(init.headers);
-    headers.set("Authorization", `Bearer ${token}`);
+    headers.set(CSAR_HEADER_AUTHORIZATION, `Bearer ${token}`);
 
     const response = await next(input, { ...init, headers });
 
@@ -24,7 +29,7 @@ export function createAuthMiddleware(
       tokenManager.clearCache();
       const freshToken = await tokenManager.getAccessToken();
       const retryHeaders = new Headers(init.headers);
-      retryHeaders.set("Authorization", `Bearer ${freshToken}`);
+      retryHeaders.set(CSAR_HEADER_AUTHORIZATION, `Bearer ${freshToken}`);
       return next(input, { ...init, headers: retryHeaders });
     }
 

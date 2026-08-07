@@ -9,6 +9,16 @@ export const CSAR_HEADER_CLIENT_LIMIT = "X-CSAR-Client-Limit";
 /** Response header: machine-readable backpressure state indicator. */
 export const CSAR_HEADER_STATUS = "X-CSAR-Status";
 
+/**
+ * Request header: the service-to-service STS access token presented to the
+ * router. Deliberately not `Authorization` — on routes without a
+ * credential-injection profile the router proxies `Authorization` verbatim to
+ * the upstream, so a caller can pass its own third-party credential through
+ * while still authenticating the hop to CSAR. The router strips this header
+ * before proxying.
+ */
+export const CSAR_HEADER_AUTHORIZATION = "X-Csar-Authorization";
+
 /** Standard RFC 7231 response header for retry delay (seconds or HTTP-date). */
 export const CSAR_HEADER_RETRY_AFTER = "Retry-After";
 
