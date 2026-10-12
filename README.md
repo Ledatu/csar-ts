@@ -426,3 +426,122 @@ npm run lint
 ## License
 
 MIT
+
+## Node HTTP maintenance (`csar-ts/server-drain`)
+
+The isolated `server-drain` entry is for Node HTTP/HTTPS servers (Node18.2+).
+The existing browser entry does not statically link the server helper or its
+Node built-ins; its existing lazy Node file-key loader remains unchanged. Express4
+applications can instrument their public registration methods without reading
+Express's internal router stack:
+
+```typescript
+import { createServerDrain } from "csar-ts/server-drain";
+
+const drain = createServerDrain({ service: "orders" });
+app.use(drain.admission); // FIRST: before body parsing, auth, and routes.
+drain.instrumentRegistration(app);
+const router = drain.instrumentRegistration(express.Router());
+router.route("/orders").post(async (req, res) => {
+  const order = await saveOrder(req.body);
+  void drain.task("order-cache", () => refreshCache(order)).catch(reportError);
+  res.json(order);
+});
+app.use(router);
+const server = https.createServer(tlsOptions, app);
+const listen = () => new Promise<void>(resolve => server.listen(port, resolve));
+drain.attachServer(server, { resume: listen });
+await drain.startControl(`/run/orders-drain/worker-${process.pid}.sock`);
+await listen(); // A failed control startup must never open the business listener.
+```
+
+Create one controller per worker; share that same instance with every nested
+Router factory and cache helper. Instrument **every** Router and Route
+registration site, including mounted routers. Instrumentation only covers
+registrations performed afterward. `handler(fn)` and `handlers(nestedArray)`
+are available for explicit registration. Public `.use`, HTTP methods, `.all`,
+`.param` and `.route(...).get/...` preserve arrays, parameter callbacks, the
+single-argument `app.get(setting)` getter, and error-handler arity4. Install the
+admission middleware before instrumentation/other middleware. An unadmitted
+wrapped callback refuses to execute. This utility cannot detect omitted router
+factories without a reviewed source inventory.
+
+Admission is checked once per request. Previously admitted asynchronous
+middleware and downstream handlers can finish during maintenance. Each actual
+returned handler promise stays counted after `next()`, response finish, or
+client abort. Callback-style middleware remains counted until `next()` or a
+successfully finished terminal response **and** its returned promise, if any,
+settles. An abort alone cannot settle a deferred callback. A callback that
+starts additional work after `next()`/terminal finish must explicitly register
+that work; neither Express nor this helper can infer arbitrary detached timers.
+
+`task(label, factory)` counts work from launch to settlement. Pass a static,
+non-secret label and a factory, never an already-running promise. New background
+factories are refused before invocation during maintenance. Tasks belonging to
+still-active admitted handlers/tasks can continue; stale async contexts cannot
+start new work after that request's handlers/tasks/transports all settle.
+Handle rejected task promises. The helper neither cancels business work nor
+changes marketplace, database, or AMQP delivery semantics.
+
+`drain(epoch, timeoutMs)` closes admission before calling each original
+server's `close()` and `closeIdleConnections()`. It reports complete only when
+all listeners have closed and all request, handler, and task counts are zero.
+Timeouts (1–300000ms) leave maintenance active and work running. They never kill
+processes or automatically resume. An explicit `resume(epoch)` requires the
+same settled epoch and invokes the supplied original listener callbacks;
+listener failure keeps maintenance active. A failed partial resume needs
+operator inspection. No signal handlers or process exits are installed.
+
+The control directory must already exist, belong to the current effective UID,
+and have mode0700 with no symlink ancestors. Each exclusive Unix socket is
+mode0600; existing sockets/files are refused and never deleted as stale evidence.
+In PM2 cluster mode `exclusive:true` keeps the control listener in its worker,
+so Linux `SO_PEERCRED` identifies the worker rather than the PM2 daemon. Send one
+newline-terminated JSON command (maximum4096bytes):
+
+```json
+{"v":1,"command":"status"}
+{"v":1,"command":"drain","epoch":"migration-window-0001","timeout_ms":30000}
+{"v":1,"command":"resume","epoch":"migration-window-0001"}
+```
+
+Status returns `v`, `service`, actual `pid`, `uid`, `linux_start_ticks` (decimal
+string, null off Linux), actual `entry_sha256`, numeric Unix `observed_at`,
+`epoch`, `phase`, `admission_closed`, `active_requests`, `active_handlers`,
+`active_tasks`, `servers[{listening,closed,error}]`, `failures`, `epoch_failures`,
+`rejections`, `epoch_rejections`, and `counters_saturated`. PM2's `pm_exec_path`
+selects its loaded entry; ordinary processes use `argv[1]`. A production observer
+must independently match that path/hash to the running PM2 process, Linux
+PID/start ticks and Unix peer UID/PID. This helper does not accept a claimed
+identity, hash, idle state, or success flag from control clients.
+
+Failure counts include returned handler rejection/throw/`next(error)`, rejected
+tasks, and completed HTTP5xx responses. Epoch counts baseline historical errors
+at the start of maintenance; rejection counts distinguish refused admission and
+new background factories. Counters saturate at2147483647 and expose saturation.
+A safe migration observer refuses new epoch failures or saturated counters until
+reviewed. A drained state proves **quiescence**, not successful or consistent WB
+side effects. Swallowed errors, semantic response failures, preexisting ordinary
+AMQP channel guarantees, and unknown external outcomes require their own review.
+
+The first deployment into an uninstrumented worker is a separate operational
+gate: zero sockets or a normal rolling restart cannot prove a client-aborted
+handler's external mutation completed. Keep exact old bundles and resolve that
+ambiguity before restarting old workers. Installing this library is not a
+cutover, admission-fence, process-restart, or writer-fence authorization.
+
+
+Package checks run with `npm run lint`, `npm test`, `npm run build`, then
+`npm pack --ignore-scripts --pack-destination <artifact-dir>` and
+`npm run check:package -- <artifact-dir>/csar-ts-2.1.0.tgz`. The workflow also
+runs `tests/server/native-drill.py` in pinned Node18.20.4 (production runtime)
+and Node20.19.5 Linux images, using
+real PM2 cluster6.0.14 workers, the actual packed helper, TLS and kernel Unix
+peer credentials. Docker Desktop fixtures must put Unix sockets on a native
+Linux volume/container filesystem rather than a Mac bind mount. Only the
+non-secret proof and public package/checksum are CI artifacts.
+
+Publication remains manual: merge reviewed source, attach the tested package
+and SHA256SUMS to its GitHub release using ghCLI, and have consumers pin both
+asset and checksum. No npm-registry credentials or production deployment are
+part of this workflow.

@@ -1,6 +1,6 @@
 {
   "name": "csar-ts",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Smart Resilience SDK — lightweight interceptor for Axios/Fetch with transparent backpressure handling from the CSAR API gateway",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -16,6 +16,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./server-drain": {
+      "import": {
+        "types": "./dist/server-drain.d.ts",
+        "default": "./dist/server-drain.js"
+      },
+      "require": {
+        "types": "./dist/server-drain.d.cts",
+        "default": "./dist/server-drain.cjs"
+      }
     }
   },
   "files": [
@@ -26,7 +36,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "check:package": "node tests/server/check-package.mjs"
   },
   "peerDependencies": {
     "axios": ">=0.21.0"
@@ -37,8 +48,11 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^20.19.0",
     "axios": "^1.7.0",
+    "express": "4.18.2",
     "msw": "^2.7.0",
+    "pm2": "6.0.14",
     "tsup": "^8.4.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
