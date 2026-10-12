@@ -1,0 +1,53 @@
+name: SDK checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: node18
+            image: node:18.20.4-bookworm@sha256:c5c88762e9097e7fa405e5713731ea924fa52da33a13929ed64d8a6b79b95c89
+          - runtime: node20
+            image: node:20.19.5-bookworm@sha256:ba36e9b2705008e63e354214f0e3011c528af9df2ca13ac2bd2c0114650302e6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20.19.5'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Check the packed exports and browser graph
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/artifacts"
+          npm run check:package -- "$RUNNER_TEMP/artifacts/csar-ts-2.1.0.tgz"
+          sha256sum "$RUNNER_TEMP/artifacts/csar-ts-2.1.0.tgz" > "$RUNNER_TEMP/artifacts/SHA256SUMS"
+      - name: Actual packed helper under Linux PM2 and TLS
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          mkdir -m 700 "$RUNNER_TEMP/native-proof"
+          DIGEST=$(sha256sum "$RUNNER_TEMP/artifacts/csar-ts-2.1.0.tgz" | cut -d' ' -f1)
+          docker run --name csar-ts-http-native --network none --cpus 2 --memory 2g --pids-limit 256 \
+            -e FIXTURE_IMAGE="$IMAGE" -v "$PWD:/source:ro" \
+            -v "$RUNNER_TEMP/artifacts:/artifacts:ro" -v "$RUNNER_TEMP/native-proof:/evidence" \
+            "$IMAGE" python3 /source/tests/server/native-drill.py \
+            --artifact /artifacts/csar-ts-2.1.0.tgz --artifact-sha256 "$DIGEST"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sdk-package-and-native-proof-${{ matrix.runtime }}
+          path: |
+            ${{ runner.temp }}/artifacts/csar-ts-2.1.0.tgz
+            ${{ runner.temp }}/artifacts/SHA256SUMS
+            ${{ runner.temp }}/native-proof/proof.json
