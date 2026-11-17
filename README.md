@@ -545,3 +545,11 @@ Publication remains manual: merge reviewed source, attach the tested package
 and SHA256SUMS to its GitHub release using ghCLI, and have consumers pin both
 asset and checksum. No npm-registry credentials or production deployment are
 part of this workflow.
+
+For requests that must never be replayed, set both `maxRetries: 0` and
+`auth.retryUnauthorized: false`. The latter disables the otherwise independent
+one-time replay after HTTP401 in the client and async Fetch/Axios adapters.
+A401still invalidates the cached token; only the next independently admitted
+request obtains fresh authentication. STS token-exchange retries remain separate.
+Neither HTTP method nor an idempotency-looking header proves a side effect safe
+to replay. Router-side retries must also be disabled for these routes.

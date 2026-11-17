@@ -16,6 +16,7 @@ import { CSAR_HEADER_AUTHORIZATION } from "../constants.js";
 export function createAuthMiddleware(
   tokenManager: TokenManager,
   log: CsarLogger,
+  retryUnauthorized = true,
 ): FetchMiddleware {
   return async (input, init, next) => {
     const token = await tokenManager.getAccessToken();
@@ -25,8 +26,9 @@ export function createAuthMiddleware(
     const response = await next(input, { ...init, headers });
 
     if (response.status === 401) {
-      log.auth?.("Received 401, refreshing token and retrying…");
       tokenManager.clearCache();
+      if (!retryUnauthorized) return response;
+      log.auth?.("Received 401, refreshing token and retrying…");
       const freshToken = await tokenManager.getAccessToken();
       const retryHeaders = new Headers(init.headers);
       retryHeaders.set(CSAR_HEADER_AUTHORIZATION, `Bearer ${freshToken}`);

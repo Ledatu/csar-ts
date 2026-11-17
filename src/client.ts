@@ -99,7 +99,7 @@ export async function createCsarClient(
   if (config.auth) {
     const key = await loadServiceKey(config.auth);
     const tokenManager = new TokenManager(key, config.auth, log, baseFetch);
-    middlewares.push(createAuthMiddleware(tokenManager, log));
+    middlewares.push(createAuthMiddleware(tokenManager, log, config.auth.retryUnauthorized));
   }
 
   // 1. Header injection

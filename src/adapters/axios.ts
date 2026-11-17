@@ -217,8 +217,9 @@ export async function applyCsarAxiosAsync(
         const cfg = error.config as unknown as Record<string, unknown>;
         if (cfg[AUTH_RETRIED_KEY]) throw error;
 
-        log.auth?.("Received 401, refreshing token and retrying…");
         tokenManager.clearCache();
+        if (config.auth?.retryUnauthorized === false) throw error;
+        log.auth?.("Received 401, refreshing token and retrying…");
         const freshToken = await tokenManager.getAccessToken();
         (error.config as InternalAxiosRequestConfig).headers.set(
           CSAR_HEADER_AUTHORIZATION,
