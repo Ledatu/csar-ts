@@ -12,7 +12,8 @@ try {
   mkdirSync(directory, {recursive: true});
   execFileSync('tar', ['-xzf', artifact, '--strip-components=1', '-C', directory]);
   const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
-  assert.equal(manifest.version, '2.1.0');
+  const expected = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(manifest.version, expected.version);
   for (const mode of ['import', 'require']) {
     for (const field of ['types', 'default']) {
       const path = manifest.exports['./server-drain'][mode][field];
