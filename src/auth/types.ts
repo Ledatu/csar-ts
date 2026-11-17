@@ -55,6 +55,11 @@ export interface CsarAuthConfig {
 
   /** Max retries for STS token exchange failures (default: 2). */
   maxStsRetries?: number;
+
+  /** Replay the original request once after401 (default:true). Set false for
+   * side effects that have no replay proof. The cache is still invalidated for
+   * the next independently admitted request. STS-only retries are unaffected. */
+  retryUnauthorized?: boolean;
 }
 
 /**
