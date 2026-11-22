@@ -53,9 +53,9 @@
     "express": "4.22.3",
     "msw": "^2.7.0",
     "pm2": "7.1.2",
-    "tsup": "^8.4.0",
+    "tsup": "^9.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.11"
   },
   "keywords": [
     "csar",
