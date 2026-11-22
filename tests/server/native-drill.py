@@ -115,7 +115,7 @@ try:
         assert s['servers']==[dict(listening=False,closed=True,error=False)]
     master=int((root/'pm2/pm2.pid').read_text())
     assert all(r['peer']['pid']!=master for r in final), 'PM2 master accepted worker control socket'
-    proof=dict(status='passed',image=os.environ.get('FIXTURE_IMAGE'),node=subprocess.check_output(['node','--version'],text=True).strip(),pm2='6.0.14',artifact_sha256=a.artifact_sha256,worker_sha256=worker_sha,epoch=epoch,pm2_master=master,workers=final,real_tls_outbound_mutation_calls=len(calls),response_finish_not_completion=True,actual_unix_peer_matches=True,actual_packed_helper=True,production_mutations=False)
+    proof=dict(status='passed',image=os.environ.get('FIXTURE_IMAGE'),node=subprocess.check_output(['node','--version'],text=True).strip(),pm2=json.loads(Path('/source/node_modules/pm2/package.json').read_text())['version'],artifact_sha256=a.artifact_sha256,worker_sha256=worker_sha,epoch=epoch,pm2_master=master,workers=final,real_tls_outbound_mutation_calls=len(calls),response_finish_not_completion=True,actual_unix_peer_matches=True,actual_packed_helper=True,production_mutations=False)
     (export/'proof.json').write_text(json.dumps(proof,indent=2)+'\n')
     print(json.dumps({k:v for k,v in proof.items() if k!='workers'}),flush=True)
     if a.wait_observer:
