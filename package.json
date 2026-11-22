@@ -48,7 +48,7 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^20.19.0",
+    "@types/node": "^26.6.6",
     "axios": "^1.21.1",
     "express": "4.22.3",
     "msw": "^2.7.0",
