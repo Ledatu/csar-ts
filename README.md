@@ -42,7 +42,7 @@ npm install csar-ts
 bun install csar-ts
 ```
 
-If you use the Axios adapter, install Axios alongside it:
+If you use the Axios adapter, install Axios 1.20.0 or newer alongside it:
 
 ```bash
 bun install axios csar-ts
